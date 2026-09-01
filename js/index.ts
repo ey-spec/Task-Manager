@@ -169,6 +169,27 @@ function getRelativeTime(timestamp: number): string {
   return `${daysAgo}d ago`;
 }
 
+function isDueSoon(dueDate: string): boolean {
+  if (!dueDate) return false;
+
+  const due = new Date(dueDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  due.setHours(0, 0, 0, 0);
+
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const daysUntilDue = (due.getTime() - today.getTime()) / msPerDay;
+
+  return daysUntilDue >= 0 && daysUntilDue <= 2;
+}
+
+function formatDueDate(dueDate: string): string {
+  if (!dueDate) return "";
+
+  const date = new Date(dueDate);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 interface PriorityStyle {
   bg: string;
   text: string;
@@ -271,6 +292,7 @@ function buildTaskCard(task: Task, index: number): string {
   const priority = priorityStyles[task.priority];
   const buttons = statusButtons[task.status];
   const dot = statusDot[task.status];
+  const dueSoon = isDueSoon(task.dueDate);
 
   const buttonsHTML = buttons
     .map((button) => {
@@ -336,6 +358,14 @@ function buildTaskCard(task: Task, index: number): string {
                   ${priority.label}
                 </span>
                 ${
+                  dueSoon
+                    ? `<span class="bg-orange-100 text-orange-600 text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide">
+                        Due Soon
+                      </span>`
+                    : ""
+                }
+  
+                ${
                   task.status === "completed"
                     ? `<span
                   class="bg-emerald-100 text-emerald-600 text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide inline-flex items-center gap-1"
@@ -347,12 +377,10 @@ function buildTaskCard(task: Task, index: number): string {
                 }
               </div>
               <!-- Meta info -->
-              <div
-                class="flex items-center gap-3 text-xs text-slate-400 pb-3 mb-3 border-b border-slate-100"
-              >
-                <div class="flex items-center gap-1.5">
+              <div class="flex items-center gap-3 text-xs text-slate-400 pb-3 mb-3 border-b border-slate-100">
+                <div class="flex items-center gap-1.5 ${dueSoon ? "text-orange-500" : ""}">
                   <i class="fa-regular fa-calendar"></i>
-                  <span>${task.dueDate}</span>
+                  <span>${formatDueDate(task.dueDate)}</span>
                 </div>
                 <div class="flex items-center gap-1.5">
                   <i class="fa-regular fa-clock"></i>
@@ -392,6 +420,12 @@ document
 renderTodoTasks();
 renderInProgressTasks();
 renderCompletedTasks();
+
+setInterval(() => {
+  renderTodoTasks();
+  renderInProgressTasks();
+  renderCompletedTasks();
+}, 60000);
 
 // =============================== Edit Task ==========================================
 
