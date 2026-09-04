@@ -118,16 +118,20 @@ function getRelativeTime(timestamp) {
     const daysAgo = Math.floor(hoursAgo / 24);
     return `${daysAgo}d ago`;
 }
-function isDueSoon(dueDate) {
+function getDueStatus(dueDate) {
     if (!dueDate)
-        return false;
+        return "none";
     const due = new Date(dueDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     due.setHours(0, 0, 0, 0);
     const msPerDay = 1000 * 60 * 60 * 24;
     const daysUntilDue = (due.getTime() - today.getTime()) / msPerDay;
-    return daysUntilDue >= 0 && daysUntilDue <= 2;
+    if (daysUntilDue < 0)
+        return "overdue";
+    if (daysUntilDue <= 2)
+        return "due-soon";
+    return "none";
 }
 function formatDueDate(dueDate) {
     if (!dueDate)
@@ -217,7 +221,7 @@ function buildTaskCard(task, index) {
     const priority = priorityStyles[task.priority];
     const buttons = statusButtons[task.status];
     const dot = statusDot[task.status];
-    const dueSoon = isDueSoon(task.dueDate);
+    const dueStatus = task.status === "completed" ? "none" : getDueStatus(task.dueDate);
     const buttonsHTML = buttons
         .map((button) => {
         return `
@@ -280,11 +284,15 @@ function buildTaskCard(task, index) {
                   <span class="w-1.5 h-1.5 rounded-full ${priority.dot}"> </span>
                   ${priority.label}
                 </span>
-                ${dueSoon
-        ? `<span class="bg-orange-100 text-orange-600 text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide">
+                ${dueStatus === "overdue"
+        ? `<span class="bg-red-100 text-red-600 text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide">
+                        Overdue
+                      </span>`
+        : dueStatus === "due-soon"
+            ? `<span class="bg-orange-100 text-orange-600 text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide">
                         Due Soon
                       </span>`
-        : ""}
+            : ""}
   
                 ${task.status === "completed"
         ? `<span
@@ -297,7 +305,11 @@ function buildTaskCard(task, index) {
               </div>
               <!-- Meta info -->
               <div class="flex items-center gap-3 text-xs text-slate-400 pb-3 mb-3 border-b border-slate-100">
-                <div class="flex items-center gap-1.5 ${dueSoon ? "text-orange-500" : ""}">
+                <div class="flex items-center gap-1.5 ${dueStatus === "overdue"
+        ? "text-red-500"
+        : dueStatus === "due-soon"
+            ? "text-orange-500"
+            : ""}">
                   <i class="fa-regular fa-calendar"></i>
                   <span>${formatDueDate(task.dueDate)}</span>
                 </div>
@@ -324,6 +336,20 @@ document
     const selectedTask = tasks.find((task) => taskId === task.id);
     if (!selectedTask)
         return;
+    if (getDueStatus(selectedTask.dueDate) === "overdue" &&
+        newStatus === "completed") {
+        Swal.fire({
+            title: "Can't complete an overdue task!",
+            icon: "error",
+            toast: true,
+            position: "top-end",
+            showConfirmButton: false,
+            timer: 3000,
+            background: "#ef4444",
+            color: "#fff",
+        });
+        return;
+    }
     selectedTask.status = newStatus;
     localStorage.setItem("task", JSON.stringify(tasks));
     renderCompletedTasks();
@@ -384,6 +410,9 @@ function updateTask() {
 form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!titleValidation()) {
+        return;
+    }
+    if (!dateValidation()) {
         return;
     }
     if (editingTaskId !== null) {
@@ -460,3 +489,25 @@ taskTitleInput.addEventListener("input", () => {
     }
     titleValidation();
 });
+function dateValidation() {
+    const dateValue = taskDueDateInput.value;
+    const dateError = document.getElementById("date-error");
+    dateError.classList.add("hidden");
+    taskDueDateInput.classList.remove(...errorClasses);
+    taskDueDateInput.classList.add(...successClasses);
+    if (dateValue === "") {
+        return true;
+    }
+    const selectedDate = new Date(dateValue);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    selectedDate.setHours(0, 0, 0, 0);
+    if (selectedDate.getTime() < today.getTime()) {
+        dateError.textContent = "Due date cannot be in the past";
+        dateError.classList.remove("hidden");
+        taskDueDateInput.classList.remove(...successClasses);
+        taskDueDateInput.classList.add(...errorClasses);
+        return false;
+    }
+    return true;
+}
